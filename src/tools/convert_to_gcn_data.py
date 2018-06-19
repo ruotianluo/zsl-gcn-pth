@@ -5,10 +5,10 @@ import pickle as pkl
 from scipy import sparse
 import os
 
-from tensorflow.python import pywrap_tensorflow
 from prepare_list import prepare_graph
 
-# https://github.com/tensorflow/models/blob/master/research/slim/datasets/imagenet_lsvrc_2015_synsets.txt
+import torch
+
 data_dir = '../../data/'
 
 
@@ -49,20 +49,9 @@ def convert_label(model_path, layer_name, save_dir, offset):  # get output's lab
     with open(corresp_file) as fp:
         corresp_list = json.load(fp)
 
-    def get_variables_in_checkpoint_file(file_name):
-        reader = pywrap_tensorflow.NewCheckpointReader(file_name)
-        var_to_shape_map = reader.get_variable_to_shape_map()
-        return var_to_shape_map, reader
-
-    var_keep_dic, reader = get_variables_in_checkpoint_file(model_path)
-    for name in var_keep_dic:
-        print(name, len(var_keep_dic[name]), var_keep_dic[name])
-        if name == layer_name:
-            print(name)
-            print(reader.get_tensor(name).shape)
-            fc = reader.get_tensor(name).squeeze()
-            fc_dim = fc.shape[0]
-            break
+    reader = torch.load(model_path, map_location=lambda storage, loc: storage)
+    fc = reader[layer_name].t().numpy()
+    fc_dim = fc.shape[0]
 
     fc_labels = np.zeros((len(corresp_list), fc_dim))
     print('fc dim', fc_labels.shape)
@@ -116,24 +105,25 @@ def parse_arg():
 
 if __name__ == '__main__':
     args = parse_arg()
-    if args.fc == 'inception':
-        model_path = '../../pretrain_weights/inception_v1.ckpt'
-        layer_name = 'InceptionV1/Logits/Conv2d_0c_1x1/weights'
-        offset = 1
-    elif args.fc == 'res50':
-        model_path = '../../pretrain_weights/resnet_v1_50.ckpt'
-        layer_name = 'resnet_v1_50/logits/weights'
+    # if args.fc == 'inception':
+    #     model_path = '../../pretrain_weights/inception_v1.ckpt'
+    #     layer_name = 'InceptionV1/Logits/Conv2d_0c_1x1/weights'
+    #     offset = 1
+    if args.fc == 'res50':
+        model_path = '../../pretrain_weights/resnet50-caffe.pth'
+        layer_name = 'fc.weight'
+        offset = 0
+    elif args.fc == 'res101':
+        model_path = '../../pretrain_weights/resnet101-caffe.pth'
+        layer_name = 'fc.weight'
+        offset = 0
+    elif args.fc == 'res152':
+        model_path = '../../pretrain_weights/resnet152-caffe.pth'
+        layer_name = 'fc.weight'
         offset = 0
     else:
         raise NotImplementedError
 
-    if args.wv == 'glove':
-        wv_file = os.path.join(data_dir, 'word_embedding_model', 'glove_word2vec_wordnet.pkl')
-    elif args.wv == 'google':
-        wv_file = os.path.join(data_dir, 'word_embedding_model', 'google_word2vec_wordnet.pkl')
-    elif args.wv == 'fasttext':
-        wv_file = os.path.join(data_dir, 'word_embedding_model', 'fasttext_word2vec_wordnet.pkl')
-    else:
-        raise NotImplementedError
+    wv_file = os.path.join(data_dir, 'word_embedding_model', '%s_word2vec_wordnet.pkl' %args.wv)
 
     convert_to_gcn_data(model_path, layer_name, offset, wv_file)

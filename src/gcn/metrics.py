@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+import torch.nn.functional as F
+
 
 def masked_softmax_cross_entropy(preds, labels, mask):
     """Softmax cross-entropy loss with masking."""
@@ -31,15 +33,15 @@ def masked_sigmoid_cross_entropy(preds, labels, mask):
 
 def mask_mse_loss(preds, labels, mask):
     """Sigmoid cross-entropy loss with masking."""
-    mask = tf.cast(mask, dtype=tf.float32)
-    mask /= tf.reduce_mean(mask)
+    mask = mask.float()
+    mask /= mask.mean()
 
-    labels *= mask 
-    preds  *= mask
+    labels = labels * mask 
+    preds  = preds * mask
 
     # loss = tf.losses.mean_squared_error(labels=labels, predictions=preds, weights=mask)
     # loss = tf.losses.mean_squared_error(labels=labels, predictions=preds, weights=1.0)
-    loss = tf.nn.l2_loss(tf.subtract(labels, preds))
+    loss = F.mse_loss(labels, preds, size_average=False) / 2
 
     # return tf.reduce_mean(loss)
     return loss

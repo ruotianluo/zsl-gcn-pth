@@ -5,6 +5,9 @@ import json
 import numpy as np
 import pickle as pkl
 
+import torchtext
+from torchtext.vocab import GloVe, FastText
+
 """
 for extracting word embedding yourself, please download pretrained model from one of the following links.
 """
@@ -114,6 +117,13 @@ def fasttext(word_vectors, word):
     return word_vectors.get_word_vector(word)
 
 
+def get_vector(word_vectors, word):
+    if word in word_vectors.stoi:
+        return word_vectors[word].numpy()
+    else:
+        raise NotImplementedError
+
+
 def parse_arg():
     parser = argparse.ArgumentParser(description='word embeddign type')
     parser.add_argument('--wv', type=str, default='glove',
@@ -132,20 +142,18 @@ if __name__ == '__main__':
     if args.wv == 'glove':
         save_file = os.path.join(data_dir, 'word_embedding_model', 'glove_word2vec_wordnet.pkl')
         if not os.path.exists(save_file):
-            word_vectors = get_glove_dict(model_path)
-            get_vector = glove_google
+            word_vectors = GloVe('6B')
+            # get_vector = glove_google
     elif args.wv == 'google':
         save_file = os.path.join(data_dir, 'word_embedding_model', 'google_word2vec_wordnet.pkl')
         if not os.path.exists(save_file):
             from gensim.models.keyedvectors import KeyedVectors
             word_vectors = KeyedVectors.load_word2vec_format(model_path, binary=True)
-            get_vector = glove_google
+            # get_vector = glove_google
     elif args.wv == 'fasttext':
         save_file = os.path.join(data_dir, 'word_embedding_model', 'fasttext_word2vec_wordnet.pkl')
         if not os.path.exists(save_file):
-            from fastText import load_model
-            word_vectors = load_model(os.path.join(model_path, 'wiki.en.bin'))
-            get_vector = fasttext
+            word_vectors = FastText()
     else:
         raise NotImplementedError
 

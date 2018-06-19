@@ -3,23 +3,16 @@ import os
 import numpy as np
 import cv2
 
-import tensorflow as tf
-import tensorflow.contrib.slim as slim
-from tensorflow.contrib.slim import arg_scope
-from tensorflow.contrib.slim.python.slim.nets import resnet_v1
-from tensorflow.contrib.slim.python.slim.nets import inception_v1
-from tensorflow.contrib.slim.python.slim.nets.inception_v1 import inception_v1_base
-from tensorflow.contrib.layers.python.layers import layers as layers_lib
-from tensorflow.python.ops import variable_scope
+import torch
+import torch.nn as nn
+from torchvision.models.resnet import resnet50, resnet101, resnet152
 import time
 
 
-def extract_feature(image_list, pool5, image_holder, preprocess, model_path, image_dir, feat_dir):
-    tfconfig = tf.ConfigProto(allow_soft_placement=True)
-    tfconfig.gpu_options.allow_growth = True
-    sess = tf.Session(config=tfconfig)
+def extract_feature(image_list, model, preprocess, model_path, image_dir, feat_dir):
 
-    init(model_path, sess)
+    model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage), False)
+    model.cuda()
     print('Done Init! ')
     net_time, cnt = 0, 0
     for i, index in enumerate(image_list):
@@ -40,7 +33,7 @@ def extract_feature(image_list, pool5, image_holder, preprocess, model_path, ima
         if image is None:
             print('no image')
             continue
-        feat = run_feat(sess, pool5, image_holder, image)
+        feat = run_feat(model, image)
         if not os.path.exists(os.path.dirname(feat_name)):
             try:
                 os.makedirs(os.path.dirname(feat_name))
@@ -57,38 +50,7 @@ def extract_feature(image_list, pool5, image_holder, preprocess, model_path, ima
         cmd = 'rm -r %s' % lockname
         os.system(cmd)
 
-
-def init(model_path, sess):
-    def get_variables_in_checkpoint_file(file_name):
-        reader = tf.pywrap_tensorflow.NewCheckpointReader(file_name)
-        # reader.get_tensor()
-        var_to_shape_map = reader.get_variable_to_shape_map()
-        return var_to_shape_map, reader
-
-    var_keep_dic, reader = get_variables_in_checkpoint_file(model_path)
-    my_var_list = tf.global_variables()
-    sess.run(tf.variables_initializer(my_var_list, name='init'))
-    variables_to_restore = []
-    my_dict = {}
-    for v in my_var_list:
-        name = v.name.split(':')[0]
-        my_dict[name] = 0
-        if not var_keep_dic.has_key(name):
-            print('He does not have', name)
-        else:
-            if v.shape != var_keep_dic[name]:
-                print('Does not match shape: ', v.shape, var_keep_dic[name])
-                continue
-            variables_to_restore.append(v)
-    for name in var_keep_dic:
-        if not my_dict.has_key(name):
-            print('I do not have ', name)
-    restorer = tf.train.Saver(variables_to_restore)
-    restorer.restore(sess, model_path)
-    print('Initialized')
-
-
-def preprocess_res50(image_name):
+def preprocess_resnet(image_name):
     _R_MEAN = 123.68
     _G_MEAN = 116.78
     _B_MEAN = 103.94
@@ -141,87 +103,94 @@ def preprocess_inception(image_name):
     image = image[np.newaxis, :, :, :]
     return image
 
-
-def run_feat(sess, pool5, image_holder, image):
-    feat = sess.run(pool5, feed_dict={image_holder: image})
-    feat = np.squeeze(feat)
-    # exit()
+def run_feat(model, image):
+    feat = model(torch.from_numpy(image.transpose(0,3,1,2)).cuda()).squeeze().cpu().data.numpy()
     return feat
 
-
-def resnet_arg_scope(is_training=True,
-                     batch_norm_decay=0.997,
-                     batch_norm_epsilon=1e-5,
-                     batch_norm_scale=True):
-    batch_norm_params = {
-        'is_training': False,
-        'decay': batch_norm_decay,
-        'epsilon': batch_norm_epsilon,
-        'scale': batch_norm_scale,
-        'trainable': False,
-        'updates_collections': tf.GraphKeys.UPDATE_OPS
-    }
-    with arg_scope(
-            [slim.conv2d],
-            weights_initializer=slim.variance_scaling_initializer(),
-            trainable=is_training,
-            activation_fn=tf.nn.relu,
-            normalizer_fn=slim.batch_norm,
-            normalizer_params=batch_norm_params):
-        with arg_scope([slim.batch_norm], **batch_norm_params) as arg_sc:
-            return arg_sc
-
-
-def inception_arg_scope(is_training=True,
-                        batch_norm_decay=0.997,
-                        batch_norm_epsilon=1e-5,
-                        batch_norm_scale=True):
-    batch_norm_params = {
-        'is_training': False,
-        'decay': batch_norm_decay,
-        'epsilon': batch_norm_epsilon,
-        'trainable': False,
-        'updates_collections': tf.GraphKeys.UPDATE_OPS
-    }
-    with arg_scope(
-            [slim.conv2d],
-            weights_initializer=slim.variance_scaling_initializer(),
-            trainable=is_training,
-            activation_fn=tf.nn.relu,
-            normalizer_fn=slim.batch_norm,
-            normalizer_params=batch_norm_params):
-        with arg_scope([slim.batch_norm], **batch_norm_params) as arg_sc:
-            return arg_sc
+# def resnet_arg_scope(is_training=True,
+#                      batch_norm_decay=0.997,
+#                      batch_norm_epsilon=1e-5,
+#                      batch_norm_scale=True):
+#     batch_norm_params = {
+#         'is_training': False,
+#         'decay': batch_norm_decay,
+#         'epsilon': batch_norm_epsilon,
+#         'scale': batch_norm_scale,
+#         'trainable': False,
+#         'updates_collections': tf.GraphKeys.UPDATE_OPS
+#     }
+#     with arg_scope(
+#             [slim.conv2d],
+#             weights_initializer=slim.variance_scaling_initializer(),
+#             trainable=is_training,
+#             activation_fn=tf.nn.relu,
+#             normalizer_fn=slim.batch_norm,
+#             normalizer_params=batch_norm_params):
+#         with arg_scope([slim.batch_norm], **batch_norm_params) as arg_sc:
+#             return arg_sc
 
 
-def res50():
-    image = tf.placeholder(tf.float32, [None, 224, 224, 3], 'image')
-    with slim.arg_scope(resnet_arg_scope(is_training=False)):
-        net_conv, end_point = resnet_v1.resnet_v1_50(image, global_pool=True, is_training=False)
-    return net_conv, image
+# def inception_arg_scope(is_training=True,
+#                         batch_norm_decay=0.997,
+#                         batch_norm_epsilon=1e-5,
+#                         batch_norm_scale=True):
+#     batch_norm_params = {
+#         'is_training': False,
+#         'decay': batch_norm_decay,
+#         'epsilon': batch_norm_epsilon,
+#         'trainable': False,
+#         'updates_collections': tf.GraphKeys.UPDATE_OPS
+#     }
+#     with arg_scope(
+#             [slim.conv2d],
+#             weights_initializer=slim.variance_scaling_initializer(),
+#             trainable=is_training,
+#             activation_fn=tf.nn.relu,
+#             normalizer_fn=slim.batch_norm,
+#             normalizer_params=batch_norm_params):
+#         with arg_scope([slim.batch_norm], **batch_norm_params) as arg_sc:
+#             return arg_sc
 
 
-def inception():
-    image = tf.placeholder(tf.float32, [None, 224, 224, 3], 'image')
-    with slim.arg_scope(inception_arg_scope(is_training=False)):
-        with variable_scope.variable_scope(
-                'InceptionV1', 'InceptionV1', [image, 1000], reuse=None) as scope:
-            with arg_scope(
-                    [layers_lib.batch_norm, layers_lib.dropout], is_training=False):
-                net, end_points = inception_v1_base(image, scope=scope)
-                with variable_scope.variable_scope('Logits'):
-                    net_conv = layers_lib.avg_pool2d(
-                        net, [7, 7], stride=1, scope='MaxPool_0a_7x7')
-    print(net_conv.shape)
+def resnet(model_type):
+    if model_type == 'res50':
+        model = resnet50()
+    elif model_type == 'res101':
+        model = resnet101()
+    elif model_type == 'res152':
+        model = resnet152()
+    model.maxpool = torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=0, ceil_mode=True) # change
+    for i in range(2, 5):
+        getattr(model, 'layer%d'%i)[0].conv1.stride = (2,2)
+        getattr(model, 'layer%d'%i)[0].conv2.stride = (1,1)
+    del model.fc
+    model.fc = lambda x:x
 
-    return net_conv, image
+    return model
+
+
+
+# def inception():
+#     image = tf.placeholder(tf.float32, [None, 224, 224, 3], 'image')
+#     with slim.arg_scope(inception_arg_scope(is_training=False)):
+#         with variable_scope.variable_scope(
+#                 'InceptionV1', 'InceptionV1', [image, 1000], reuse=None) as scope:
+#             with arg_scope(
+#                     [layers_lib.batch_norm, layers_lib.dropout], is_training=False):
+#                 net, end_points = inception_v1_base(image, scope=scope)
+#                 with variable_scope.variable_scope('Logits'):
+#                     net_conv = layers_lib.avg_pool2d(
+#                         net, [7, 7], stride=1, scope='MaxPool_0a_7x7')
+#     print(net_conv.shape)
+
+#     return net_conv, image
 
 
 def parse_arg():
     parser = argparse.ArgumentParser(description='word embeddign type')
     parser.add_argument('--fc', type=str, default='res50',
                         help='word embedding type: [inception, res50]')
-    parser.add_argument('--model_path', type=str, default='../pretrain_weights/resnet_v1_50.ckpt',
+    parser.add_argument('--model_path', type=str, default='../pretrain_weights/resnet50-caffe.pth',
                         help='path to pretrained model')
     parser.add_argument('--image_file', type=str, default='../data/list/img-2-hops.txt',
                         help='list of image file')
@@ -229,21 +198,21 @@ def parse_arg():
                         help='directory to save features')
     parser.add_argument('--feat_dir', type=str, default='../feats/',
                         help='directory to save features')
-    parser.add_argument('--gpu', type=str, default='0',
-                        help='gpu device')
+    # parser.add_argument('--gpu', type=str, default='0',
+    #                     help='gpu device')
     args = parser.parse_args()
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    # os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     return args
 
 
 args = parse_arg()
 
-if args.fc == 'inception':
-    pool5, image_holder = inception()
-    preprocess = preprocess_inception
-elif args.fc == 'res50':
-    pool5, image_holder = res50()
-    preprocess = preprocess_res50
+# if args.fc == 'inception':
+#     pool5, image_holder = inception()
+#     preprocess = preprocess_inception
+if args.fc in ['res50', 'resnet101', 'resnet152']:
+    model = resnet(args.fc)
+    preprocess = preprocess_resnet
 else:
     raise NotImplementedError
 image_list, label_list = [], []
@@ -254,4 +223,4 @@ with open(args.image_file) as fp:
         label_list.append(int(l))
 
 if __name__ == '__main__':
-    extract_feature(image_list, pool5, image_holder, preprocess, args.model_path, args.image_dir, args.feat_dir)
+    extract_feature(image_list, model, preprocess, args.model_path, args.image_dir, args.feat_dir)

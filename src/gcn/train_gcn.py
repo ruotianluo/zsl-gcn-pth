@@ -11,6 +11,11 @@ import numpy as np
 from utils import *
 from models import GCN_dense_mse, Pure_dense_mse
 
+import torch
+from torch import optim
+
+# import tensorboard as tb
+
 # Set random seed
 seed = 123
 np.random.seed(seed)
@@ -56,23 +61,28 @@ else:
 print(features.shape)
 
 # Define placeholders
-placeholders = {
-    'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
-    'features': tf.placeholder(tf.float32, shape=(features.shape[0], features.shape[1])),  # sparse_placeholder
-    'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
-    'labels_mask': tf.placeholder(tf.int32),
-    'dropout': tf.placeholder_with_default(FLAGS.dropout, shape=()),
-    'num_features_nonzero': tf.placeholder(tf.int32),  # helper variable for sparse dropout
-    'learning_rate': tf.placeholder(tf.float32, shape=())
-}
+# placeholders = {
+#     'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
+#     'features': tf.placeholder(tf.float32, shape=(features.shape[0], features.shape[1])),  # sparse_placeholder
+#     'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
+#     'labels_mask': tf.placeholder(tf.int32),
+#     'dropout': tf.placeholder_with_default(0., shape=()),
+#     'num_features_nonzero': tf.placeholder(tf.int32),  # helper variable for sparse dropout
+#     'learning_rate': tf.placeholder(tf.float32, shape=())
+# }
+
+device = 'cuda:0'
 
 # Create model
-model = model_func(placeholders, input_dim=features.shape[1], logging=True)
+model = model_func(input_dim=features.shape[1], output_dim =y_train.shape[1], support_num=num_supports, dropout=FLAGS.dropout, logging=True)
+# tensorflow_model = '/home-nfs/rluo/rluo/zero-shot-gcn/src/init.ckpt'
+# from convert import tf_to_pth
+# model.load_state_dict(tf_to_pth(tensorflow_model))
 
-sess = tf.Session(config=create_config_proto())
+model.to(device=device)
+model.train()
 
-# Init variables
-sess.run(tf.global_variables_initializer())
+optimizer = optim.Adam(model.parameters(), lr=FLAGS.learning_rate, weight_decay=FLAGS.weight_decay)
 
 cost_val = []
 
@@ -87,22 +97,43 @@ if not os.path.exists(savepath):
 else:
     print('### save to: %s' % savepath)
 
+
+features, y_train, train_mask = \
+    torch.from_numpy(features).float().to(device=device),\
+    torch.from_numpy(y_train).float().to(device=device),\
+    torch.from_numpy(train_mask.astype(np.uint8)).to(device=device)
+
+def to_sparse(x):
+    """ converts dense tensor x to sparse format """
+    return torch.sparse.FloatTensor(torch.from_numpy(x[0]).long().t(), torch.from_numpy(x[1]).float(), x[2])
+
+support = [to_sparse(_).to(device=device) for _ in support]
+
 # Train model
 now_lr = FLAGS.learning_rate
 for epoch in range(FLAGS.epochs):
     t = time.time()
     # Construct feed dictionary
-    feed_dict = construct_feed_dict(features, support, y_train, train_mask, placeholders)
-    feed_dict.update({placeholders['learning_rate']: now_lr})
+    # feed_dict.update({placeholders['learning_rate']: now_lr})
+
+    for group in optimizer.param_groups:
+        group['lr'] = now_lr
 
     # Training step
-    outs = sess.run([model.opt_op, model.loss, model.accuracy, model.optimizer._lr], feed_dict=feed_dict)
+    optimizer.zero_grad()
+    loss = model(features, support, y_train, train_mask)
+    loss.backward()
+    optimizer.step()
 
-    if epoch % 20 == 0:
-        print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs[1]),
-              "train_loss_nol2=", "{:.5f}".format(outs[2]),
+    if epoch % 1 == 0:
+        with torch.no_grad():
+            model.eval()
+            val_loss = model(features, support, y_train, train_mask)
+            model.train()
+        print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(loss.item()),
+              "val_loss=", "{:.5f}".format(val_loss.item()),
               "time=", "{:.5f}".format(time.time() - t),
-              "lr=", "{:.5f}".format(float(outs[3])))
+              "lr=", "{:.5f}".format(now_lr))
 
     flag = 0
     for k in range(len(save_epochs)):
@@ -110,7 +141,10 @@ for epoch in range(FLAGS.epochs):
             flag = 1
 
     if flag == 1 or epoch % 500 == 0:
-        outs = sess.run(model.outputs, feed_dict=feed_dict)
+        model.eval()
+        with torch.no_grad():
+            outs = model(features, support).cpu().numpy()
+        model.train()
         filename = savepath + '/feat_' + os.path.basename(FLAGS.dataset) + '_' + str(epoch)
         print(time.strftime('[%X %x %Z]\t') + 'save to: ' + filename)
 
@@ -119,5 +153,3 @@ for epoch in range(FLAGS.epochs):
         filehandler.close()
 
 print("Optimization Finished!")
-
-sess.close()

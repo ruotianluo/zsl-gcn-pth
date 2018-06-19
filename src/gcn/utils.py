@@ -161,15 +161,15 @@ def preprocess_adj(adj):
     return sparse_to_tuple(adj_normalized)
 
 
-def construct_feed_dict(features, support, labels, labels_mask, placeholders):
-    """Construct feed dictionary."""
-    feed_dict = dict()
-    feed_dict.update({placeholders['labels']: labels})
-    feed_dict.update({placeholders['labels_mask']: labels_mask})
-    feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
-    feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
-    return feed_dict
+# def construct_feed_dict(features, support, labels, labels_mask, placeholders):
+#     """Construct feed dictionary."""
+#     feed_dict = dict()
+#     feed_dict.update({placeholders['labels']: labels})
+#     feed_dict.update({placeholders['labels_mask']: labels_mask})
+#     feed_dict.update({placeholders['features']: features})
+#     feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
+#     feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
+#     return feed_dict
 
 
 def chebyshev_polynomials(adj, k):

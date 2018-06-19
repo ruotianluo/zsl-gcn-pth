@@ -1,3 +1,7 @@
+import torch
+import torch.nn.functional as F
+import torch.nn as nn
+
 from layers import *
 from metrics import *
 
@@ -27,223 +31,186 @@ def parse_hiddens(dim_in, dim_out):
         dim_in = hiddens[i][1]
     return hiddens
 
-class Model(object):
-    def __init__(self, **kwargs):
-        allowed_kwargs = {'name', 'logging'}
-        for kwarg in kwargs.keys():
-            assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
-        name = kwargs.get('name')
-        if not name:
-            name = self.__class__.__name__.lower()
-        self.name = name
+# class Model(object):
+#     def __init__(self, **kwargs):
+#         allowed_kwargs = {'name', 'logging'}
+#         for kwarg in kwargs.keys():
+#             assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
+#         name = kwargs.get('name')
+#         if not name:
+#             name = self.__class__.__name__.lower()
+#         self.name = name
 
-        logging = kwargs.get('logging', False)
-        self.logging = logging
+#         logging = kwargs.get('logging', False)
+#         self.logging = logging
 
-        self.vars = {}
-        self.placeholders = {}
+#         self.vars = {}
+#         self.placeholders = {}
 
-        self.layers = []
-        self.activations = []
+#         self.layers = []
+#         self.activations = []
 
-        self.inputs = None
-        self.outputs = None
+#         self.inputs = None
+#         self.outputs = None
 
-        self.loss = 0
-        self.accuracy = 0
-        self.optimizer = None
-        self.opt_op = None
+#         self.loss = 0
+#         self.accuracy = 0
+#         self.optimizer = None
+#         self.opt_op = None
 
-        self.decay = 0
+#         self.decay = 0
 
-    def _build(self):
-        raise NotImplementedError
+#     def _build(self):
+#         raise NotImplementedError
 
-    def build(self):
-        """ Wrapper for _build() """
-        with tf.variable_scope(self.name):
-            self._build()
+#     def build(self):
+#         """ Wrapper for _build() """
+#         with tf.variable_scope(self.name):
+#             self._build()
 
-        # Build sequential layer model
-        self.activations.append(self.inputs)
-        for layer in self.layers:
-            hidden = layer(self.activations[-1])
-            self.activations.append(hidden)
-        self.outputs = self.activations[-1]
+#         # Build sequential layer model
+#         self.activations.append(self.inputs)
+#         for layer in self.layers:
+#             hidden = layer(self.activations[-1])
+#             self.activations.append(hidden)
+#         self.outputs = self.activations[-1]
 
-        # Store model variables for easy access
-        variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-        self.vars = {var.name: var for var in variables}
+#         # Store model variables for easy access
+#         variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+#         self.vars = {var.name: var for var in variables}
 
-        # Build metrics
-        self._loss()
-        self._accuracy()
+#         # Build metrics
+#         self._loss()
+#         self._accuracy()
 
-        self.opt_op = self.optimizer.minimize(self.loss)
+#         self.opt_op = self.optimizer.minimize(self.loss)
 
-    def predict(self):
-        pass
+#     def predict(self):
+#         pass
 
-    def _loss(self):
-        raise NotImplementedError
+#     def _loss(self):
+#         raise NotImplementedError
 
-    def _accuracy(self):
-        raise NotImplementedError
+#     def _accuracy(self):
+#         raise NotImplementedError
 
-    def save(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = saver.save(sess, "tmp/%s.ckpt" % self.name)
-        print("Model saved in file: %s" % save_path)
+#     def save(self, sess=None):
+#         if not sess:
+#             raise AttributeError("TensorFlow session not provided.")
+#         saver = tf.train.Saver(self.vars)
+#         save_path = saver.save(sess, "tmp/%s.ckpt" % self.name)
+#         print("Model saved in file: %s" % save_path)
 
-    def load(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = "tmp/%s.ckpt" % self.name
-        saver.restore(sess, save_path)
-        print("Model restored from file: %s" % save_path)
-
-
-class Model_dense(object):
-    def __init__(self, **kwargs):
-        allowed_kwargs = {'name', 'logging'}
-        for kwarg in kwargs.keys():
-            assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
-        name = kwargs.get('name')
-        if not name:
-            name = self.__class__.__name__.lower()
-        self.name = name
-
-        logging = kwargs.get('logging', False)
-        self.logging = logging
-
-        self.vars = {}
-        self.placeholders = {}
-
-        self.layers = []
-        self.activations = []
-
-        self.inputs = None
-        self.outputs = None
-
-        self.loss = 0
-        self.accuracy = 0
-        self.optimizer = None
-        self.opt_op = None
-
-        self.decay = 0
-
-    def _build(self):
-        raise NotImplementedError
-
-    def build(self):
-        """ Wrapper for _build() """
-        with tf.variable_scope(self.name):
-            self._build()
-
-        # Build sequential layer model
-        self.activations.append(self.inputs)
-        for layer in self.layers:
-            hidden = layer(self.activations[-1])
-            self.activations.append(hidden)
-        self.outputs = self.activations[-1]
-
-        # Store model variables for easy access
-        variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-        self.vars = {var.name: var for var in variables}
-
-        # Build metrics
-        self._loss()
-        self._accuracy()
-
-        self.opt_op = self.optimizer.minimize(self.loss)
-
-        # calculate gradient with respect to input, only for dense model
-        self.grads = tf.gradients(self.loss, self.inputs)[0]  # does not work on sparse vector
-
-    def predict(self):
-        pass
-
-    def _loss(self):
-        raise NotImplementedError
-
-    def _accuracy(self):
-        raise NotImplementedError
-
-    def save(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = saver.save(sess, "tmp/%s.ckpt" % self.name)
-        print("Model saved in file: %s" % save_path)
-
-    def load(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = "tmp/%s.ckpt" % self.name
-        saver.restore(sess, save_path)
-        print("Model restored from file: %s" % save_path)
+#     def load(self, sess=None):
+#         if not sess:
+#             raise AttributeError("TensorFlow session not provided.")
+#         saver = tf.train.Saver(self.vars)
+#         save_path = "tmp/%s.ckpt" % self.name
+#         saver.restore(sess, save_path)
+#         print("Model restored from file: %s" % save_path)
 
 
-class Model_dense_mse(Model_dense):
-    def __init__(self, layer_func, placeholders, input_dim, **kwargs):
-        super(Model_dense_mse, self).__init__(**kwargs)
+# class Model_dense(object):
+#     def __init__(self, **kwargs):
+#         allowed_kwargs = {'name', 'logging'}
+#         for kwarg in kwargs.keys():
+#             assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
+#         name = kwargs.get('name')
+#         if not name:
+#             name = self.__class__.__name__.lower()
+#         self.name = name
+
+#         logging = kwargs.get('logging', False)
+#         self.logging = logging
+
+#         self.vars = {}
+#         self.placeholders = {}
+
+#         self.layers = []
+#         self.activations = []
+
+#         self.inputs = None
+#         self.outputs = None
+
+#         self.loss = 0
+#         self.accuracy = 0
+#         self.optimizer = None
+#         self.opt_op = None
+
+#         self.decay = 0
+
+#     def _build(self):
+#         raise NotImplementedError
+
+#     def build(self):
+
+#         # Build sequential layer model
+#         self.activations.append(self.inputs)
+#         for layer in self.layers:
+#             hidden = layer(self.activations[-1])
+#             self.activations.append(hidden)
+#         self.outputs = self.activations[-1]
+
+#         # Build metrics
+#         self._loss()
+#         self._accuracy()
+
+#     def predict(self):
+#         pass
+
+#     def _loss(self):
+#         raise NotImplementedError
+
+#     def _accuracy(self):
+#         raise NotImplementedError
+
+
+class  Model_dense_mse(nn.Module):
+    def __init__(self, layer_func, input_dim, output_dim, support_num, dropout, logging):
+        super(Model_dense_mse, self).__init__()
         self.layer_func = layer_func
 
-        self.inputs = placeholders['features']
-        # self.inputs = tf.Variable(np.random.randn(*placeholders['features'].shape).astype(np.float32)*0.3, trainable=True, name='Embedding') 
-        self.input_dim = input_dim
-        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
-        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
-        self.placeholders = placeholders
-
         # self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=placeholders['learning_rate'])
-        self.build()
+        # self.optimizer = tf.train.AdamOptimizer(learning_rate=placeholders['learning_rate'])
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.logging = logging
 
-    def _loss(self):
-        # Weight decay loss
-        for i in range(len(self.layers)):
-            for var in self.layers[i].vars.values():
-                self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
+        self.layers = nn.ModuleList()
 
-        # Cross entropy error
-        self.loss += mask_mse_loss(self.outputs, tf.nn.l2_normalize(self.placeholders['labels'], dim=1),
-                                   self.placeholders['labels_mask'])
-
-    def _accuracy(self):
-        self.accuracy = mask_mse_loss(self.outputs, tf.nn.l2_normalize(self.placeholders['labels'], dim=1),
-                                      self.placeholders['labels_mask'])
-
-    def lrelu(x, leak=0.2, name="lrelu"):
-        return tf.maximum(x, leak * x)
-
-    def _build(self):
         hiddens = parse_hiddens(self.input_dim, self.output_dim)
         for i in range(len(hiddens)):
-            if i == len(hiddens) - 1:
-                act = lambda x: tf.nn.l2_normalize(x, dim=1)
-            else:
-                act = lambda x: tf.maximum(x, 0.2 * x)
             self.layers.append(self.layer_func(input_dim=hiddens[i][0],
                                                 output_dim=hiddens[i][1],
-                                                placeholders=self.placeholders,
-                                                act=act,
-                                                dropout=hiddens[i][2],
-                                                sparse_inputs=False,
-                                                logging=self.logging))
+                                                support_num=support_num,
+                                                dropout=dropout if hiddens[i][2] else 0))
 
-    def predict(self):
-        return self.outputs
+    def forward(self, features, adjs, labels = None, labels_mask=None):
+        inputs = features
+        num_features_nonzero = features[1].shape
 
+        # Build sequential layer model
+        self.activations = []
+        self.activations.append(inputs)
+        for layer in self.layers[:-1]:
+            hidden = F.leaky_relu(layer(self.activations[-1], adjs, num_features_nonzero), 0.2)
+            self.activations.append(hidden)
+        self.activations.append(F.normalize(self.layers[-1](self.activations[-1], adjs, num_features_nonzero), dim=1))
+        outputs = self.activations[-1]
+
+        if labels is not None:
+            # return loss and accuracy
+
+            loss = mask_mse_loss(outputs, F.normalize(labels, dim=1),
+                                    labels_mask)
+            return loss
+        else:
+            return outputs
 
 class GCN_dense_mse(Model_dense_mse):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(GCN_dense_mse, self).__init__(GraphConvolution, placeholders, input_dim, **kwargs)
+    def __init__(self, input_dim, output_dim, support_num, dropout, logging):
+        super(GCN_dense_mse, self).__init__(GraphConvolution, input_dim, output_dim, support_num, dropout, logging)
 
 class Pure_dense_mse(Model_dense_mse):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(Pure_dense_mse, self).__init__(Dense, placeholders, input_dim, **kwargs)
+    def __init__(self, input_dim, output_dim, support_num, dropout, logging):
+        super(Pure_dense_mse, self).__init__(Dense, input_dim, output_dim, support_num, dropout, logging)
