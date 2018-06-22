@@ -5,8 +5,12 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 def parse_hiddens(dim_in, dim_out):
-    hidden_layers = FLAGS.hiddens
-    if hidden_layers[-1] == ',' or hidden_layers[-2] == ',':
+    hidden_layers = FLAGS.hiddens    
+    if len(hidden_layers) == 0:
+        hidden_layers = str(dim_out)
+    elif len(hidden_layers) == 1:
+        hidden_layers = str(dim_out) + 'd'
+    elif hidden_layers[-1] == ',' or hidden_layers[-2] == ',':
         # add last layer in.
         hidden_layers = hidden_layers[:hidden_layers.rfind(',')+1] \
                         + str(dim_out) \
