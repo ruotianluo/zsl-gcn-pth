@@ -48,7 +48,7 @@ def embed_text_file(text_file, word_vectors, get_vector, save_file):
             missed_list.append(class_name)
         else:
             has += 1
-            feat = feat / (np.linalg.norm(feat) + 1e-6)
+            # feat = feat / (np.linalg.norm(feat) + 1e-6)
 
         all_feats.append(feat)
 
@@ -94,14 +94,13 @@ def get_glove_dict(txt_dir):
     print('load glove word embedding')
     txt_file = os.path.join(txt_dir, 'glove.6B.300d.txt')
     word_dict = {}
-    feat = np.zeros(feat_len)
     with open(txt_file) as fp:
         for line in fp:
+            feat = np.zeros(feat_len)
             words = line.split()
             assert len(words) - 1 == feat_len
             for i in range(feat_len):
                 feat[i] = float(words[i+1])
-            feat = np.array(feat)
             word_dict[words[0]] = feat
     print('loaded to dict!')
     return word_dict
