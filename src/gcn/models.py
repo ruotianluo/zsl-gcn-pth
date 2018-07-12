@@ -4,6 +4,24 @@ from metrics import *
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
+def parse_hiddens(dim_in, dim_out):
+    hidden_layers = FLAGS.hiddens
+    if hidden_layers[-1] == ',' or hidden_layers[-2] == ',':
+        # add last layer in.
+        hidden_layers = hidden_layers[:hidden_layers.rfind(',')+1] \
+                        + str(dim_out) \
+                        + hidden_layers[hidden_layers.rfind(',')+1:]
+    else:
+        hidden_layers = hidden_layers + ',' + str(dim_out)
+    hiddens = hidden_layers.split(',')
+
+    for i in range(len(hiddens)):
+        if hiddens[i][-1] == 'd':
+            hiddens[i] = (dim_in, int(hiddens[i][:-1]), True)
+        else:
+            hiddens[i] = (dim_in, int(hiddens[i]), False)
+        dim_in = hiddens[i][1]
+    return hiddens
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -171,6 +189,7 @@ class GCN_dense_mse(Model_dense):
         super(GCN_dense_mse, self).__init__(**kwargs)
 
         self.inputs = placeholders['features']
+        # self.inputs = tf.Variable(np.random.randn(*placeholders['features'].shape).astype(np.float32)*0.3, trainable=True, name='Embedding') 
         self.input_dim = input_dim
         # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
         self.output_dim = placeholders['labels'].get_shape().as_list()[1]
@@ -198,52 +217,19 @@ class GCN_dense_mse(Model_dense):
         return tf.maximum(x, leak * x)
 
     def _build(self):
-        self.layers.append(GraphConvolution(input_dim=self.input_dim,
-                                            output_dim=FLAGS.hidden1,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: tf.maximum(x, 0.2 * x),
-                                            dropout=False,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
-                                            output_dim=FLAGS.hidden2,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: tf.maximum(x, 0.2 * x),
-                                            dropout=False,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden2,
-                                            output_dim=FLAGS.hidden3,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: tf.maximum(x, 0.2 * x),
-                                            dropout=False,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden3,
-                                            output_dim=FLAGS.hidden4,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: tf.maximum(x, 0.2 * x),
-                                            dropout=False,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden4,
-                                            output_dim=FLAGS.hidden5,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: tf.maximum(x, 0.2 * x),
-                                            dropout=True,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden5,
-                                            output_dim=self.output_dim,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: tf.nn.l2_normalize(x, dim=1),
-                                            dropout=True,
-                                            logging=self.logging))
+        hiddens = parse_hiddens(self.input_dim, self.output_dim)
+        for i in range(len(hiddens)):
+            if i == len(hiddens) - 1:
+                act = lambda x: tf.nn.l2_normalize(x, dim=1)
+            else:
+                act = lambda x: tf.maximum(x, 0.2 * x)
+            self.layers.append(self.layer_func(input_dim=hiddens[i][0],
+                                                output_dim=hiddens[i][1],
+                                                placeholders=self.placeholders,
+                                                act=act,
+                                                dropout=hiddens[i][2],
+                                                sparse_inputs=False,
+                                                logging=self.logging))
 
     def predict(self):
         return self.outputs
