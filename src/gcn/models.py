@@ -193,7 +193,7 @@ class  Model_dense_mse(nn.Module):
         self.activations = []
         self.activations.append(inputs)
         for layer in self.layers[:-1]:
-            hidden = F.leaky_relu(layer(self.activations[-1], adjs, num_features_nonzero), 0.2)
+            hidden = F.leaky_relu(layer(self.activations[-1], adjs, num_features_nonzero), FLAGS.lrelu_slope)
             self.activations.append(hidden)
         self.activations.append(F.normalize(self.layers[-1](self.activations[-1], adjs, num_features_nonzero), dim=1))
         outputs = self.activations[-1]

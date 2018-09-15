@@ -34,6 +34,7 @@ flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
+flags.DEFINE_float('lrelu_slope', 0.2, 'Leaky relu slope')
 flags.DEFINE_string('gpu', '0', 'gpu id')
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
 
