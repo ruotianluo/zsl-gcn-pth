@@ -208,9 +208,9 @@ class  Model_dense_mse(nn.Module):
             return outputs
 
 class GCN_dense_mse(Model_dense_mse):
-    def __init__(self, input_dim, output_dim, support_num, dropout, logging):
-        super(GCN_dense_mse, self).__init__(GraphConvolution, input_dim, output_dim, support_num, dropout, logging)
+    def __init__(self, *args, **kwargs):
+        super(GCN_dense_mse, self).__init__(GraphConvolution, *args, **kwargs)
 
 class Pure_dense_mse(Model_dense_mse):
-    def __init__(self, input_dim, output_dim, support_num, dropout, logging):
-        super(Pure_dense_mse, self).__init__(Dense, input_dim, output_dim, support_num, dropout, logging)
+    def __init__(self, *args, **kwargs):
+        super(Pure_dense_mse, self).__init__(Dense, *args, **kwargs)
