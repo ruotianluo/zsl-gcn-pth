@@ -192,10 +192,13 @@ class  Model_dense_mse(nn.Module):
         # Build sequential layer model
         self.activations = []
         self.activations.append(inputs)
-        for layer in self.layers[:-1]:
-            hidden = F.leaky_relu(layer(self.activations[-1], adjs, num_features_nonzero), FLAGS.lrelu_slope)
+        for i, layer in enumerate(self.layers):
+            if i == len(self.layers) - 1:
+                act = lambda x: F.normalize(x, dim=1)
+            else:
+                act = lambda x: F.leaky_relu(x, FLAGS.lrelu_slope)
+            hidden = act(layer(self.activations[-1], adjs, num_features_nonzero))
             self.activations.append(hidden)
-        self.activations.append(F.normalize(self.layers[-1](self.activations[-1], adjs, num_features_nonzero), dim=1))
         outputs = self.activations[-1]
 
         if labels is not None:
