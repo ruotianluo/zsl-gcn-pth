@@ -14,7 +14,7 @@ from models import GCN_dense_mse, Pure_dense_mse
 import torch
 from torch import optim
 
-# import tensorboard as tb
+import tensorboardX as tb
 
 # Set random seed
 seed = 123
@@ -104,6 +104,7 @@ if not os.path.exists(savepath):
 else:
     print('### save to: %s' % savepath)
 
+summary_writer = tb.SummaryWriter(savepath)
 
 features, y_train, train_mask = \
     torch.from_numpy(features).float().to(device=device),\
@@ -131,6 +132,10 @@ for epoch in range(FLAGS.epochs):
     loss = model(features, support, y_train, train_mask)
     loss.backward()
     optimizer.step()
+
+    train_loss = model.losses
+    for k,v in model.losses.items():
+        summary_writer.add_scalar(k, v, epoch)
 
     if epoch % 1 == 0:
         with torch.no_grad():
