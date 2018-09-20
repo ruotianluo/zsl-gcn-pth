@@ -34,6 +34,7 @@ flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
+flags.DEFINE_integer('save_every', 50, 'Save model every x epochs.')
 flags.DEFINE_float('lrelu_slope', 0.2, 'Leaky relu slope')
 flags.DEFINE_string('gpu', '0', 'gpu id')
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
@@ -137,9 +138,8 @@ for epoch in range(FLAGS.epochs):
               "lr=", "{:.5f}".format(now_lr))
 
     flag = 0
-    for k in range(len(save_epochs)):
-        if save_epochs[k] == epoch:
-            flag = 1
+    if epoch % FLAGS.save_every == 0:
+        flag = 1
 
     if flag == 1 or epoch % 500 == 0:
         model.eval()
