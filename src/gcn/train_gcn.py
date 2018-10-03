@@ -36,6 +36,8 @@ flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of e
 flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
 flags.DEFINE_integer('save_every', 50, 'Save model every x epochs.')
 flags.DEFINE_float('lrelu_slope', 0.2, 'Leaky relu slope')
+flags.DEFINE_string('adj_norm_type', 'sym', 'sym or in')
+flags.DEFINE_string('feat_norm_type', 'dense2', 'dense2, none, l2')
 flags.DEFINE_string('gpu', '0', 'gpu id')
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
 
@@ -47,7 +49,10 @@ adj, features, y_train, y_val, y_trainval, train_mask, val_mask, trainval_mask =
         load_data_vis_multi(FLAGS.dataset, use_trainval, feat_suffix)
 
 # Some preprocessing
-features, div_mat = preprocess_features_dense2(features)
+if FLAGS.feat_norm_type == 'dense2':
+    features, div_mat = preprocess_features_dense2(features)
+elif FLAGS.feat_norm_type == 'l2':
+    features = torch.nn.functional.normalize(torch.from_numpy(features)).numpy()
 
 if FLAGS.model == 'dense':
     support = [preprocess_adj(adj)]

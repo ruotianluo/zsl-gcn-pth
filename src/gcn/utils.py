@@ -6,6 +6,8 @@ from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import tensorflow as tf
 
+flags = tf.app.flags
+FLAGS = flags.FLAGS
 
 def parse_index_file(filename):
     """Parse index file."""
@@ -43,6 +45,9 @@ def load_data_vis_multi(dataset_str, use_trainval, feat_suffix, label_suffix='al
                 objects.append(pkl.load(f))
 
     allx, ally, graph = tuple(objects)
+
+    graph = {k:list(set(v)) for k,v in graph.items()}
+
     train_test_mask = []
     with open("{}/ind.NELL.index".format(dataset_str), 'rb') as f:
         train_test_mask = pkl.load(f)
@@ -146,13 +151,24 @@ def preprocess_features_dense2(features):
 
 
 def normalize_adj(adj):
-    """Symmetrically normalize adjacency matrix."""
-    adj = sp.coo_matrix(adj)
-    rowsum = np.array(adj.sum(1))
-    d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-    return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
+    if FLAGS.adj_norm_type == 'sym':
+        """Symmetrically normalize adjacency matrix."""
+        adj = sp.coo_matrix(adj)
+        rowsum = np.array(adj.sum(1))
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten()
+        d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+        d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+        return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
+    else:
+        # copy from adgpm
+        adj = sp.coo_matrix(adj)
+        adj = adj.transpose()
+        rowsum = np.array(adj.sum(1))
+        d_inv = np.power(rowsum, -1).flatten()
+        d_inv[np.isinf(d_inv)] = 0.
+        d_mat_inv = sp.diags(d_inv)
+        adj = d_mat_inv.dot(adj)
+        return adj.tocoo()
 
 
 def preprocess_adj(adj):
