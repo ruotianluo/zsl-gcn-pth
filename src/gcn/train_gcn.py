@@ -29,7 +29,7 @@ flags.DEFINE_integer('hidden2', 2048, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden3', 1024, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden4', 1024, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden5', 512, 'Number of units in hidden layer 1.')
-flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('dropout', 0, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
@@ -61,7 +61,7 @@ placeholders = {
     'features': tf.placeholder(tf.float32, shape=(features.shape[0], features.shape[1])),  # sparse_placeholder
     'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
     'labels_mask': tf.placeholder(tf.int32),
-    'dropout': tf.placeholder_with_default(0., shape=()),
+    'dropout': tf.placeholder_with_default(FLAGS.dropout, shape=()),
     'num_features_nonzero': tf.placeholder(tf.int32),  # helper variable for sparse dropout
     'learning_rate': tf.placeholder(tf.float32, shape=())
 }
