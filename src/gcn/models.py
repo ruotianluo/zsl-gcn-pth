@@ -166,8 +166,11 @@ def parse_hiddens(dim_in, dim_out):
 
 
 class  Model_dense_mse(nn.Module):
-    def __init__(self, layer_func, input_dim, output_dim, support_num, dropout, logging):
+    def __init__(self, layer_func, input_dim, output_dim, support_num, dropout, logging, features=None):
         super(Model_dense_mse, self).__init__()
+        if FLAGS.trainable_embedding:
+            self.register_parameter('features', nn.Parameter(torch.from_numpy(features).float()))
+
         self.layer_func = layer_func
 
         # self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
@@ -186,6 +189,11 @@ class  Model_dense_mse(nn.Module):
                                                 dropout=dropout if hiddens[i][2] else 0))
 
     def forward(self, features, adjs, labels = None, labels_mask=None):
+        if FLAGS.trainable_embedding:
+            features = self.features
+            if FLAGS.normalize_embedding:
+                features = F.normalize(features)
+
         inputs = features
         num_features_nonzero = features[1].shape
 

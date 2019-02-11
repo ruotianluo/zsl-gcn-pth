@@ -38,6 +38,8 @@ flags.DEFINE_integer('save_every', 50, 'Save model every x epochs.')
 flags.DEFINE_float('lrelu_slope', 0.2, 'Leaky relu slope')
 flags.DEFINE_string('adj_norm_type', 'sym', 'sym or in')
 flags.DEFINE_string('feat_norm_type', 'dense2', 'dense2, none, l2')
+flags.DEFINE_string('trainable_embedding', '0', 'Finetune the embedding')
+flags.DEFINE_string('normalize_embedding', '0', 'Always normalize the embedding')
 flags.DEFINE_string('gpu', '0', 'gpu id')
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
 
@@ -81,7 +83,8 @@ print(features.shape)
 device = 'cuda:0'
 
 # Create model
-model = model_func(input_dim=features.shape[1], output_dim =y_train.shape[1], support_num=num_supports, dropout=FLAGS.dropout, logging=True)
+model = model_func(input_dim=features.shape[1], output_dim =y_train.shape[1], support_num=num_supports, dropout=FLAGS.dropout, logging=True, features=features)
+
 # tensorflow_model = '/home-nfs/rluo/rluo/zero-shot-gcn/src/init.ckpt'
 # from convert import tf_to_pth
 # model.load_state_dict(tf_to_pth(tensorflow_model))
