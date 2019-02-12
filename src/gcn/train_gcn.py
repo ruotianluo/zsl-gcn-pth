@@ -9,7 +9,7 @@ import pickle as pkl
 import numpy as np
 
 from utils import *
-from models import GCN_dense_mse
+from models import GCN_dense_mse, Pure_dense_mse
 
 # Set random seed
 seed = 123
@@ -46,6 +46,10 @@ if FLAGS.model == 'dense':
     support = [preprocess_adj(adj)]
     num_supports = 1
     model_func = GCN_dense_mse
+elif FLAGS.model == 'pure_dense':
+    support = [preprocess_adj(adj)]
+    num_supports = 1
+    model_func = Pure_dense_mse
 else:
     raise ValueError('Invalid argument for model: ' + str(FLAGS.model))
 

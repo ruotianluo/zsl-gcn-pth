@@ -184,9 +184,10 @@ class Model_dense(object):
         print("Model restored from file: %s" % save_path)
 
 
-class GCN_dense_mse(Model_dense):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(GCN_dense_mse, self).__init__(**kwargs)
+class Model_dense_mse(Model_dense):
+    def __init__(self, layer_func, placeholders, input_dim, **kwargs):
+        super(Model_dense_mse, self).__init__(**kwargs)
+        self.layer_func = layer_func
 
         self.inputs = placeholders['features']
         # self.inputs = tf.Variable(np.random.randn(*placeholders['features'].shape).astype(np.float32)*0.3, trainable=True, name='Embedding') 
@@ -233,3 +234,12 @@ class GCN_dense_mse(Model_dense):
 
     def predict(self):
         return self.outputs
+
+
+class GCN_dense_mse(Model_dense_mse):
+    def __init__(self, placeholders, input_dim, **kwargs):
+        super(GCN_dense_mse, self).__init__(GraphConvolution, placeholders, input_dim, **kwargs)
+
+class Pure_dense_mse(Model_dense_mse):
+    def __init__(self, placeholders, input_dim, **kwargs):
+        super(Pure_dense_mse, self).__init__(Dense, placeholders, input_dim, **kwargs)
