@@ -18,7 +18,10 @@ class Dummy(torch.utils.data.Dataset):
         self.testlist, self.testlabel = zip(*[(_,__) for _,__ in zip(testlist, testlabel) if valid_clss[__]!=0])
 
     def __getitem__(self, index):
-        return np.load(self.testlist[index]), self.inv_labels_train[self.testlabel[index]]
+        try:
+            return np.load(self.testlist[index]), self.inv_labels_train[self.testlabel[index]]
+        except:
+            None
 
     def __len__(self):
         return len(self.testlist)
@@ -54,9 +57,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             assert int(lbl) >= 1000
             # feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.mat'))
             feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.npy'))
-            if not os.path.exists(feat_name):
-                print('not feature', feat_name)
-                continue
+            # if not os.path.exists(feat_name):
+            #     print('not feature', feat_name)
+            #     continue
             testlist.append(feat_name)
             testlabels.append(int(lbl))
 
@@ -73,9 +76,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             twv = word2vec_feat[j]
             twv = twv / (np.linalg.norm(twv) + 1e-6)
 
-            if np.linalg.norm(twv) == 0:
-                cnt_zero_wv = cnt_zero_wv + 1
-                continue
+            # if np.linalg.norm(twv) == 0:
+            #     cnt_zero_wv = cnt_zero_wv + 1
+            #     continue
             valid_clss[classids[j][0]] = 1
 
     # process 'train' classes. they are possible candidates during inference
@@ -99,9 +102,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
 
         if classids[j][0] >= 0:
             twv = word2vec_feat[j]
-            if np.linalg.norm(twv) == 0:
-                cnt_zero_wv = cnt_zero_wv + 1
-                continue
+            # if np.linalg.norm(twv) == 0:
+            #     cnt_zero_wv = cnt_zero_wv + 1
+            #     continue
 
             labels_train.append(classids[j][0])
             word2vec_train.append(twv)
@@ -120,13 +123,14 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
 
     topKs = [1]
     top_retrv = [1, 2, 5, 10, 20]
-    hit_count = np.zeros((len(topKs), len(top_retrv)))
+    hit_count = np.zeros((len(topKs), len(top_retrv)), dtype=np.float32)
 
     cnt_valid = 0
     t = time.time()
 
     dataset = Dummy(testlist, testlabels, valid_clss, labels_train)
-    loader = torch.utils.data.DataLoader(dataset, 1000, shuffle=False, num_workers=4)
+    loader = torch.utils.data.DataLoader(dataset, 1000, shuffle=False, num_workers=4,
+        collate_fn = lambda x: torch.utils.data.dataloader.default_collate([_ for _ in x if _ is not None]))
 
     for i, (matfeat, label) in enumerate(loader):
         matfeat, label = matfeat.cuda(), label.cuda()
@@ -139,11 +143,11 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
 
         for k in range(len(topKs)):
             for k2 in range(len(top_retrv)):
-                hit_count[k][k2] = hit_count[k][k2] + tmp[k2]*matfeat.size(0)
+                hit_count[k][k2] = hit_count[k][k2] + float(tmp[k2]/100*matfeat.size(0))
 
-        if cnt_valid % 100 == 0:
+        if cnt_valid % 1 == 0:
             inter = time.time() - t
-            print('processing %d / %d ' % (i, len(loader)), ', Estimated time: ', inter / (i+1) * (len(loader) - i - 1))
+            print('processing %d / %d ' % (cnt_valid, len(dataset)), ', Estimated time: ', inter / (i+1) * (len(loader) - i - 1))
             print(hit_count / cnt_valid)
 
     hit_count = hit_count / cnt_valid
@@ -253,3 +257,4 @@ if __name__ == '__main__':
         print('%s: ' % str(results[i][2]))
         print('%s' % str(results[i][1]))
     print('for model %s' % args.model)
+    torch.save(results, '%s_result.pth' %args.model)

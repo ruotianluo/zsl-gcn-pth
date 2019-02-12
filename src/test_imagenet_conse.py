@@ -18,7 +18,10 @@ class Dummy(torch.utils.data.Dataset):
         self.testlist, self.testlabel = zip(*[(_,__) for _,__ in zip(testlist, testlabel) if valid_clss[__]!=0])
 
     def __getitem__(self, index):
-        return np.load(self.testlist[index]), self.inv_labels_train[self.testlabel[index]]
+        try:
+            return np.load(self.testlist[index]), self.inv_labels_train[self.testlabel[index]]
+        except:
+            return None
 
     def __len__(self):
         return len(self.testlist)
@@ -54,9 +57,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             assert int(lbl) >= 1000
             # feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.mat'))
             feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.npy'))
-            if not os.path.exists(feat_name):
-                print('not feature', feat_name)
-                continue
+            # if not os.path.exists(feat_name):
+            #     print('not feature', feat_name)
+            #     continue
             testlist.append(feat_name)
             testlabels.append(int(lbl))
 
@@ -73,9 +76,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             twv = word2vec_feat[j]
             twv = twv / (np.linalg.norm(twv) + 1e-6)
 
-            if np.linalg.norm(twv) == 0:
-                cnt_zero_wv = cnt_zero_wv + 1
-                continue
+            # if np.linalg.norm(twv) == 0:
+            #     cnt_zero_wv = cnt_zero_wv + 1
+            #     continue
             valid_clss[classids[j][0]] = 1
 
     # process 'train' classes. they are possible candidates during inference
@@ -99,9 +102,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
 
         if classids[j][0] >= 0:
             twv = word2vec_feat[j]
-            if np.linalg.norm(twv) == 0:
-                cnt_zero_wv = cnt_zero_wv + 1
-                continue
+            # if np.linalg.norm(twv) == 0:
+            #     cnt_zero_wv = cnt_zero_wv + 1
+            #     continue
 
             labels_train.append(classids[j][0])
             word2vec_train.append(twv)
@@ -110,11 +113,13 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             tfc = tfc[feat_len - fc_dim: feat_len]
             fc_now.append(tfc)
     fc_now = torch.from_numpy(np.array(fc_now)).float().cuda()
+    if args.wv_normalize:
+        fc_now = F.normalize(fc_now)
     w2v_1k = torch.from_numpy(np.array(w2v_1k)).float().cuda()
     print('skip candidate class due to no word embedding: %d / %d:' % (cnt_zero_wv, len(labels_train) + cnt_zero_wv))
     print('candidate class shape: ', fc_now.shape)
 
-    fc_now = fc_now.t()
+    fc_now = F.normalize(fc_now).t()
     labels_train = np.array(labels_train)
     print('train + test class: ', len(labels_train))
 
@@ -131,15 +136,16 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
     res50_fc_bias = res50_weights['fc.bias'].cuda()
 
     dataset = Dummy(testlist, testlabels, valid_clss, labels_train)
-    loader = torch.utils.data.DataLoader(dataset, 1000, shuffle=False, num_workers=4)
+    loader = torch.utils.data.DataLoader(dataset, 1000, shuffle=False, num_workers=4,
+        collate_fn = lambda x: torch.utils.data.dataloader.default_collate([_ for _ in x if _ is not None]))
 
     for i, (matfeat, label) in enumerate(loader):
         matfeat, label = matfeat.cuda(), label.cuda()
 
         cnt_valid += matfeat.size(0)
 
-        prob = F.softmax(torch.matmul(matfeat, res50_fc_weight.t())+res50_fc_bias,dim=1)
-        topk_prob, topk_idx = torch.topk(prob, 10)
+        prob = F.softmax((torch.matmul(matfeat, res50_fc_weight.t())+res50_fc_bias) / args.temperature, dim=1)
+        topk_prob, topk_idx = torch.topk(prob, args.top_k)
         gath = torch.gather(w2v_1k.unsqueeze(0).expand(matfeat.size(0), -1, -1), 1, topk_idx.unsqueeze(2).expand(-1,-1,w2v_1k.size(1)))
         matfeat = torch.bmm(topk_prob.unsqueeze(1), gath).squeeze(1)
 
@@ -151,9 +157,9 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             for k2 in range(len(top_retrv)):
                 hit_count[k][k2] = hit_count[k][k2] + tmp[k2]*matfeat.size(0)
 
-        if cnt_valid % 100 == 0:
+        if cnt_valid % 1 == 0:
             inter = time.time() - t
-            print('processing %d / %d ' % (i, len(loader)), ', Estimated time: ', inter / (i+1) * (len(loader) - i - 1))
+            print('processing %d / %d ' % (cnt_valid, len(dataset)), ', Estimated time: ', inter / (i+1) * (len(loader) - i - 1))
             print(hit_count / cnt_valid)
 
     # for j in range(len(testlist)):
@@ -229,6 +235,15 @@ if __name__ == '__main__':
     parser.add_argument('--fc', type=str, default='res50',
                         help='choice: [inception,res50]')
 
+
+    parser.add_argument('--wv_normalize', action='store_true',
+                        help='normalize word2vec]')
+    parser.add_argument('--top_k', type=int, default=10,
+                        help='top_k')
+    parser.add_argument('--temperature', type=float, default=1,
+                        help='temperature for softmax')                        
+
+    global args
     args = parser.parse_args()
 
     print('-----------info-----------')

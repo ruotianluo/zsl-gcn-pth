@@ -8,6 +8,7 @@ import pickle as pkl
 import scipy.io as sio
 import time
 
+import torch
 
 def test_imagenet_zero(fc_file_pred, has_train=1):
     with open(classids_file_retrain) as fp:
@@ -23,7 +24,7 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             fname, lbl = line.split()
             assert int(lbl) >= 1000
             # feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.mat'))
-            feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.npz'))
+            feat_name = os.path.join(feat_folder, fname.replace('.JPEG', '.npy'))
             if not os.path.exists(feat_name):
                 print('not feature', feat_name)
                 continue
@@ -73,11 +74,11 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
             feat_len = len(tfc)
             tfc = tfc[feat_len - fc_dim: feat_len]
             fc_now.append(tfc)
-    fc_now = np.array(fc_now)
+    fc_now = torch.from_numpy(np.array(fc_now)).cuda()
     print('skip candidate class due to no word embedding: %d / %d:' % (cnt_zero_wv, len(labels_train) + cnt_zero_wv))
     print('candidate class shape: ', fc_now.shape)
 
-    fc_now = fc_now.T
+    fc_now = fc_now.t()
     labels_train = np.array(labels_train)
     print('train + test class: ', len(labels_train))
 
@@ -97,15 +98,12 @@ def test_imagenet_zero(fc_file_pred, has_train=1):
 
         # matfeat = sio.loadmat(featname)
         matfeat = np.load(featname)
-        matfeat = matfeat['feat']
+        matfeat = torch.from_numpy(matfeat).cuda()
 
-        scores = np.dot(matfeat, fc_now).squeeze()
+        scores = torch.matmul(matfeat, fc_now).squeeze()
 
-        scores = scores - scores.max()
-        scores = np.exp(scores)
-        scores = scores / scores.sum()
-
-        ids = np.argsort(-scores)
+        _, ids = torch.sort(-scores)
+        ids = ids.data.cpu().numpy()
 
         for k in range(len(topKs)):
             for k2 in range(len(top_retrv)):
@@ -180,15 +178,7 @@ if __name__ == '__main__':
         print('args.fc supports google (for Inception-v1)/ res50 (for Resnet-50)')
         raise ValueError
 
-    if args.wv == 'glove':
-        word2vec_file = '../data/word_embedding_model/glove_word2vec_wordnet.pkl'
-    elif args.wv == 'google':
-        word2vec_file = '../data/word_embedding_model/google_word2vec_wordnet.pkl'
-    elif args.wv == 'fasttext':
-        word2vec_file = '../data/word_embedding_model/fasttext_word2vec_wordnet.pkl'
-    else:
-        print('args.wv supports glove (for GloVe) / fast (for FastText)')
-        raise ValueError
+    word2vec_file = '../data/word_embedding_model/%s_word2vec_wordnet.pkl' %args.wv
 
     hop_set = args.hop.split(',')
     train_set = args.train.split(',')
