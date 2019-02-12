@@ -1,4 +1,67 @@
-# Zero-shot GCN
+# Zero-shot GCN in pytorch
+
+## Introduction
+This repository replicates the result in [zero-shot-gcn](https://github.com/JudyYe/zero-shot-gcn/tree/master/src). The code is largely migrated from 
+
+## Requirement
++pytorch (tensorflow is still needed for tf.FLAGS)
+
+## Difference to the original version
+
+- Fix the wrong word embedding
+- Fix the wrong dropout setting
+- Change a few things as type in [adgpm](https://github.com/cyvius96/adgpm).
+
+**None of these actually change the result much**.
+
+## Before training 
+
+**Extract features**
+
+Download the ImageNet22k images in your own ways.
+
+Download resnet model from [site](https://drive.google.com/open?id=0B7fNdx_jAqhtbVYzOURMdDNHSGM).
+
+(You can also use the torchvision pretrained model (which is used by [adgpm](https://github.com/cyvius96/adgpm)). That actually gives better result.)
+
+```
+python main.py xxx/ImageNet22k/images/ --arch resnet50 --pretrained --evaluate --batch-size 750 --workers 24
+```
+
+Then create a symbolic link for features to `../feats`.
+
+**Preprocess**
+```
+python tools/obtain_word_embedding.py
+python convert_to_gcn_data.py --fc res50 --wv glove
+```
+
+## Training
+```
+python gcn/train_gcn.py --dataset ../data/glove_res50/
+```
+
+(To run the gpm model in adgpm paper, use following command
+```
+python gcn/train_gcn.py --dataset ../data/glove_res50/ --save_path log_gpm --hiddens 2048d,d --adj_norm_type in --feat_norm_type l2
+```
+)
+
+
+## Test
+
+Evaluate images in parallel (Faster than the original tensorflow version)
+```
+python test_imagenet_pll.py --model xxxx/feat__300 --feat ../feats
+```
+
+To evaluate conse result:
+```
+python test_imagenet_conse.py --model xxxx/feat__300 --feat ../feats
+```
+
+
+# Original README
 
 This code is a re-implementation of the zero-shot classification in ImageNet in the paper [Zero-shot Recognition via Semantic Embeddings and Knowledge Graphs](https://arxiv.org/abs/1803.08035). The code is developed based on the [TensorFlow framework](https://www.tensorflow.org/) and the Graph Convolutional Network (GCN) [repo](https://github.com/tkipf/gcn/tree/master/gcn).
 
