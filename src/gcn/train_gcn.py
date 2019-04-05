@@ -136,9 +136,7 @@ for epoch in range(FLAGS.epochs):
     loss.backward()
     optimizer.step()
 
-    train_loss = model.losses
-    for k,v in model.losses.items():
-        summary_writer.add_scalar(k, v, epoch)
+    summary_writer.add_scalar('loss', loss.item(), epoch)
 
     if epoch % 1 == 0:
         with torch.no_grad():
